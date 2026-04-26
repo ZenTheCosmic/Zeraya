@@ -26,12 +26,12 @@ export default {
 
     .addUserOption(option =>
       option.setName('user')
-        .setDescription('User for avatar/mention')
+        .setDescription('Select a user (for avatar/mention)')
     )
 
     .addStringOption(option =>
       option.setName('thumbnail')
-        .setDescription('Thumbnail URL OR "user"')
+        .setDescription('"user" or image URL')
     )
 
     .addStringOption(option =>
@@ -51,20 +51,16 @@ export default {
 
     .addBooleanOption(option =>
       option.setName('timestamp')
-        .setDescription('Add timestamp')
+        .setDescription('Show embed timestamp')
     ),
 
   async execute(interaction) {
-
-    // ✅ VERY IMPORTANT (prevents "interaction failed")
-    await interaction.deferReply();
-
     try {
       const colorInput = interaction.options.getString('color');
       const title = interaction.options.getString('title');
       let description = interaction.options.getString('description');
 
-      const user = interaction.options.getUser('user') || interaction.user;
+      const selectedUser = interaction.options.getUser('user') || interaction.user;
 
       const thumbnail = interaction.options.getString('thumbnail');
       const image = interaction.options.getString('image');
@@ -72,64 +68,67 @@ export default {
       const footer = interaction.options.getString('footer');
       const timestamp = interaction.options.getBoolean('timestamp');
 
-      // ✅ FIX COLOR (auto add # if missing)
+      // ✅ Clean color
       const color = colorInput.startsWith('#') ? colorInput : `#${colorInput}`;
 
-      // ✅ Replace variables like your old bot
+      // ✅ Get avatar (clean, stable)
+      const avatar = selectedUser.displayAvatarURL({
+        extension: 'png', // prevents gif weirdness
+        size: 512
+      });
+
+      // ✅ Replace mention variable (optional use)
       description = description
-        .replace(/{user\.mention}/g, `<@${user.id}>`)
-        .replace(/{user\.avatar}/g, user.displayAvatarURL({ dynamic: true }));
+        .replace(/{user}/g, `<@${selectedUser.id}>`);
 
       const embed = createEmbed({
         title,
         description
       }).setColor(color);
 
-      // 👤 AUTHOR
+      // 👤 Author
       if (author) {
         embed.setAuthor({
           name: author,
-          iconURL: user.displayAvatarURL({ dynamic: true })
+          iconURL: avatar
         });
       }
 
-      // 🖼️ THUMBNAIL
+      // 🖼️ Thumbnail
       if (thumbnail) {
-        if (thumbnail.toLowerCase() === "user") {
-          embed.setThumbnail(user.displayAvatarURL({ dynamic: true }));
-        } else {
+        if (thumbnail.toLowerCase() === 'user') {
+          embed.setThumbnail(avatar);
+        } else if (thumbnail.startsWith('http')) {
           embed.setThumbnail(thumbnail);
         }
       }
 
-      // 🌆 IMAGE
-      if (image) embed.setImage(image);
+      // 🌆 Image
+      if (image && image.startsWith('http')) {
+        embed.setImage(image);
+      }
 
-      // 🦶 FOOTER
+      // 🦶 Footer
       if (footer) {
         embed.setFooter({
           text: footer,
-          iconURL: user.displayAvatarURL({ dynamic: true })
+          iconURL: avatar
         });
       }
 
-      // ⏱️ TIMESTAMP
-      if (timestamp) embed.setTimestamp();
+      // ⏱️ Timestamp
+      if (timestamp === true) {
+        embed.setTimestamp();
+      }
 
-      // ✅ SEND FINAL EMBED
-      await interaction.editReply({
+      await interaction.reply({
         embeds: [embed]
       });
 
     } catch (err) {
       console.error("EMBED ERROR:", err);
 
-      // ✅ SAFE ERROR RESPONSE
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({
-          content: "❌ Something broke while creating the embed."
-        });
-      } else {
+      if (!interaction.replied) {
         await interaction.reply({
           content: "❌ Something broke.",
           ephemeral: true
