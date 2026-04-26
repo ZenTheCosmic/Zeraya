@@ -4,133 +4,126 @@ import { createEmbed } from '../../utils/embeds.js';
 export default {
   data: new SlashCommandBuilder()
     .setName('embed')
-    .setDescription('Create a custom embed')
-
+    .setDescription('Advanced embed builder (multi-line)')
     .addStringOption(option =>
-      option.setName('color')
-        .setDescription('Hex color (#ff00e9)')
+      option.setName('input')
+        .setDescription('Multi-line embed config')
         .setRequired(true)
-    )
-
-    .addStringOption(option =>
-      option.setName('title')
-        .setDescription('Embed title')
-        .setRequired(true)
-    )
-
-    .addStringOption(option =>
-      option.setName('description')
-        .setDescription('Embed description')
-        .setRequired(true)
-    )
-
-    .addUserOption(option =>
-      option.setName('user')
-        .setDescription('Select a user (for avatar/mention)')
-    )
-
-    .addStringOption(option =>
-      option.setName('thumbnail')
-        .setDescription('"user" or image URL')
-    )
-
-    .addStringOption(option =>
-      option.setName('image')
-        .setDescription('Image URL')
-    )
-
-    .addStringOption(option =>
-      option.setName('author')
-        .setDescription('Author name')
-    )
-
-    .addStringOption(option =>
-      option.setName('footer')
-        .setDescription('Footer text')
-    )
-
-    .addBooleanOption(option =>
-      option.setName('timestamp')
-        .setDescription('Show embed timestamp')
     ),
 
   async execute(interaction) {
     try {
-      const colorInput = interaction.options.getString('color');
-      const title = interaction.options.getString('title');
-      let description = interaction.options.getString('description');
+      const input = interaction.options.getString('input');
 
-      const selectedUser = interaction.options.getUser('user') || interaction.user;
+      // ✅ Parse lines
+      const lines = input.split('\n');
+      const data = {};
 
-      const thumbnail = interaction.options.getString('thumbnail');
-      const image = interaction.options.getString('image');
-      const author = interaction.options.getString('author');
-      const footer = interaction.options.getString('footer');
-      const timestamp = interaction.options.getBoolean('timestamp');
+      for (const line of lines) {
+        const [key, ...valueParts] = line.split(':');
+        if (!key || valueParts.length === 0) continue;
 
-      // ✅ Clean color
-      const color = colorInput.startsWith('#') ? colorInput : `#${colorInput}`;
+        const value = valueParts.join(':').trim();
+        data[key.trim().toLowerCase()] = value;
+      }
 
-      // ✅ Get avatar (clean, stable)
-      const avatar = selectedUser.displayAvatarURL({
-        extension: 'png', // prevents gif weirdness
-        size: 512
-      });
+      // ✅ Defaults
+      let color = data.color || '#ff00e9';
+      let title = data.title || null;
+      let description = data.description || null;
 
-      // ✅ Replace mention variable (optional use)
-      description = description
-        .replace(/{user}/g, `<@${selectedUser.id}>`);
+      // ✅ USER
+      let targetUser = interaction.user;
 
+      if (data.user) {
+        const idMatch = data.user.match(/\d+/);
+        if (idMatch) {
+          try {
+            targetUser = await interaction.client.users.fetch(idMatch[0]);
+          } catch {
+            targetUser = interaction.user;
+          }
+        }
+      }
+
+      // ✅ Variables
+      if (description) {
+        description = description
+          .replace(/{user}/g, `<@${targetUser.id}>`)
+          .replace(/{user\.mention}/g, `<@${targetUser.id}>`)
+          .replace(/{user\.avatar}/g, targetUser.displayAvatarURL({ dynamic: true }));
+      }
+
+      // ✅ Create embed
       const embed = createEmbed({
         title,
         description
       }).setColor(color);
 
-      // 👤 Author
-      if (author) {
-        embed.setAuthor({
-          name: author,
-          iconURL: avatar
-        });
+      // =========================
+      // 🔥 TIMESTAMP FIX
+      // =========================
+      if (data.timestamp) {
+        if (data.timestamp.toLowerCase() === 'true') {
+          embed.setTimestamp();
+        } else {
+          embed.setTimestamp(null);
+        }
+      } else {
+        embed.setTimestamp(null);
       }
 
-      // 🖼️ Thumbnail
-      if (thumbnail) {
-        if (thumbnail.toLowerCase() === 'user') {
-          embed.setThumbnail(avatar);
-        } else if (thumbnail.startsWith('http')) {
-          embed.setThumbnail(thumbnail);
+      // =========================
+      // 🔥 THUMBNAIL FIX
+      // =========================
+      embed.setThumbnail(null); // reset first
+
+      if (data.thumbnail) {
+        if (data.thumbnail.toLowerCase() === 'user') {
+          embed.setThumbnail(targetUser.displayAvatarURL({ dynamic: true }));
+        } else if (data.thumbnail.startsWith('http')) {
+          embed.setThumbnail(data.thumbnail);
         }
       }
 
-      // 🌆 Image
-      if (image && image.startsWith('http')) {
-        embed.setImage(image);
+      // =========================
+      // 🔥 IMAGE
+      // =========================
+      if (data.image && data.image.startsWith('http')) {
+        embed.setImage(data.image);
       }
 
-      // 🦶 Footer
-      if (footer) {
+      // =========================
+      // 🔥 FOOTER
+      // =========================
+      if (data.footer) {
         embed.setFooter({
-          text: footer,
-          iconURL: avatar
+          text: data.footer
         });
       }
 
-      // ⏱️ Timestamp
-      if (timestamp === true) {
-        embed.setTimestamp();
+      // =========================
+      // 🔥 AUTHOR
+      // =========================
+      if (data.author) {
+        embed.setAuthor({
+          name: data.author,
+          iconURL: targetUser.displayAvatarURL({ dynamic: true })
+        });
       }
 
+      // ✅ IMPORTANT: reply properly (NO FAIL)
       await interaction.reply({
         embeds: [embed]
       });
 
     } catch (err) {
-      console.error("EMBED ERROR:", err);
+      console.error(err);
 
+      // fallback so no "interaction failed"
       if (!interaction.replied) {
         await interaction.reply({
-          content: "❌ Something broke.",
+          content: '❌ Error creating embed.',
           ephemeral: true
         });
       }
