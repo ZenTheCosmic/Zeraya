@@ -352,82 +352,23 @@ export const botConfig = {
   keepAuditTrail: true,
   },
 
-// =====================
-// WELCOME (WITH TIME)
-// =====================
-client.on("guildMemberAdd", (member) => {
-  console.log(`[JOIN] ${member.user.tag} joined`);
-
-  const channel = member.guild.channels.cache.get("1434403930653069430");
-  if (!channel) return console.log("[ERROR] Welcome channel not found");
-
-  const embed = new EmbedBuilder()
-    .setColor("#ff00e9")
-    .setTitle(`🎉 Welcome to ${member.guild.name}!`)
-    .setDescription(
-`Hello <@${member.id}> 👋
-
-Welcome to **Zeraya Legacy!**
-
-🧱 Survival • ⚔️ PvP • 🏗️ Building  
-🔴 Redstone • 🌍 Exploration  
-
-📜 Read the rules in <#1434403930653069431>  
-💬 Chat with others in <#1434403931601113199>  
-
-Enjoy your stay and have fun! ✨`
-    )
-    .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-    .setFooter({ text: `Member #${member.guild.memberCount}` })
-    .setTimestamp();
-
-  channel.send({ embeds: [embed] });
-});
-
-
-// =====================
-// LEAVE (WITH TIME)
-// =====================
-client.on("guildMemberRemove", (member) => {
-  console.log(`[LEAVE] ${member.user.tag} left`);
-
-  const channel = member.guild.channels.cache.get("1489566955290755203");
-  if (!channel) return console.log("[ERROR] Leave channel not found");
-
-  const embed = new EmbedBuilder()
-    .setColor("#81058D")
-    .setTitle(`👋 Goodbye from ${member.guild.name}`)
-    .setDescription(
-`<@${member.id}> has left the server.
-
-We hope to see you again someday 💔`
-    )
-    .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-    .setTimestamp();
-
-  channel.send({ embeds: [embed] });
-});
-
-// =====================
-// BAN (WITH TIME)
-// =====================
-client.on("guildBanAdd", (ban) => {
-  console.log(`[BAN] ${ban.user.tag} was banned`);
-
-  const channel = ban.guild.channels.cache.get("1489567134521753761");
-  if (!channel) return console.log("[ERROR] Ban channel not found");
-
-  const embed = new EmbedBuilder()
-    .setColor("#FF0000")
-    .setTitle("🚫 User Banned")
-    .setDescription(
-`<@${ban.user.id}> has been permanently removed from **${ban.guild.name}**.`
-    )
-    .setThumbnail(ban.user.displayAvatarURL({ dynamic: true }))
-    .setTimestamp();
-
-  channel.send({ embeds: [embed] });
-});
+  // =========================
+  // WELCOME / GOODBYE MESSAGES
+  // =========================
+  welcome: {
+    // Welcome template posted when a user joins.
+    // Placeholders: {user}, {server}, {memberCount}
+    defaultWelcomeMessage:
+      "Welcome {user} to {server}! We now have {memberCount} members!",
+    // Goodbye template posted when a user leaves.
+    // Placeholders: {user}, {memberCount}
+    defaultGoodbyeMessage:
+      "{user} has left the server. We now have {memberCount} members.",
+    // Channel ID for welcome messages.
+    defaultWelcomeChannel: null,
+    // Channel ID for goodbye messages.
+    defaultGoodbyeChannel: null,
+  },
 
   // =========================
   // COUNTER CHANNELS
