@@ -4,11 +4,11 @@ import { createEmbed } from '../../utils/embeds.js';
 export default {
   data: new SlashCommandBuilder()
     .setName('embed')
-    .setDescription('Create a simple embed')
+    .setDescription('Create a custom embed')
 
     .addStringOption(option =>
       option.setName('color')
-        .setDescription('Hex color (example: #ff00e9)')
+        .setDescription('Hex color (#ff00e9)')
         .setRequired(true)
     )
 
@@ -20,22 +20,39 @@ export default {
 
     .addStringOption(option =>
       option.setName('description')
-        .setDescription('Embed description (supports {user.mention})')
+        .setDescription('Embed description')
         .setRequired(true)
     )
 
-    // ✅ NEW: user option
+    // 🔥 NEW OPTIONS
     .addUserOption(option =>
       option.setName('user')
-        .setDescription('User to use in embed')
-        .setRequired(false)
+        .setDescription('User to use for avatar/mention')
     )
 
-    // ✅ NEW: thumbnail toggle
     .addStringOption(option =>
       option.setName('thumbnail')
-        .setDescription('Use "user" to show avatar or paste image URL')
-        .setRequired(false)
+        .setDescription('Thumbnail URL OR "user"')
+    )
+
+    .addStringOption(option =>
+      option.setName('image')
+        .setDescription('Image URL')
+    )
+
+    .addStringOption(option =>
+      option.setName('author')
+        .setDescription('Author text')
+    )
+
+    .addStringOption(option =>
+      option.setName('footer')
+        .setDescription('Footer text')
+    )
+
+    .addBooleanOption(option =>
+      option.setName('timestamp')
+        .setDescription('Add timestamp')
     ),
 
   async execute(interaction) {
@@ -43,34 +60,59 @@ export default {
     const title = interaction.options.getString('title');
     let description = interaction.options.getString('description');
 
-    const targetUser =
-      interaction.options.getUser('user') || interaction.user;
+    const user = interaction.options.getUser('user') || interaction.user;
 
-    const thumbnailOption = interaction.options.getString('thumbnail');
+    const thumbnail = interaction.options.getString('thumbnail');
+    const image = interaction.options.getString('image');
+    const author = interaction.options.getString('author');
+    const footer = interaction.options.getString('footer');
+    const timestamp = interaction.options.getBoolean('timestamp');
 
-    // ✅ Replace variables
+    // ✅ Replace variables like your old bot
     description = description
-      .replace(/{user\.mention}/g, `<@${targetUser.id}>`)
-      .replace(/{user\.avatar}/g, targetUser.displayAvatarURL({ dynamic: true }));
+      .replace(/{user\.mention}/g, `<@${user.id}>`)
+      .replace(/{user\.avatar}/g, user.displayAvatarURL({ dynamic: true }));
 
     const embed = createEmbed({
       title,
       description
     }).setColor(color);
 
-    // ✅ Thumbnail logic
-    if (thumbnailOption) {
-      if (thumbnailOption === "user") {
-        embed.setThumbnail(targetUser.displayAvatarURL({ dynamic: true }));
+    // 👤 AUTHOR
+    if (author) {
+      embed.setAuthor({
+        name: author,
+        iconURL: user.displayAvatarURL({ dynamic: true })
+      });
+    }
+
+    // 🖼️ THUMBNAIL
+    if (thumbnail) {
+      if (thumbnail === "user") {
+        embed.setThumbnail(user.displayAvatarURL({ dynamic: true }));
       } else {
-        embed.setThumbnail(thumbnailOption);
+        embed.setThumbnail(thumbnail);
       }
     }
 
-    // ✅ send clean embed
-    await interaction.channel.send({ embeds: [embed] });
+    // 🌆 IMAGE
+    if (image) embed.setImage(image);
 
-    // ✅ silent reply (no visible message)
-    await interaction.deferReply({ ephemeral: true });
+    // 🦶 FOOTER
+    if (footer) {
+      embed.setFooter({
+        text: footer,
+        iconURL: user.displayAvatarURL({ dynamic: true })
+      });
+    }
+
+    // ⏱️ TIMESTAMP
+    if (timestamp) embed.setTimestamp();
+
+    // 🔥 CLEAN (no command visible)
+    await interaction.reply({
+      embeds: [embed],
+      ephemeral: false
+    });
   }
 };
