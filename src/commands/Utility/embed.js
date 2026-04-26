@@ -55,10 +55,6 @@ export default {
     ),
 
   async execute(interaction) {
-
-    // ✅ VERY IMPORTANT (prevents "interaction failed")
-    await interaction.deferReply();
-
     try {
       const colorInput = interaction.options.getString('color');
       const title = interaction.options.getString('title');
@@ -72,13 +68,19 @@ export default {
       const footer = interaction.options.getString('footer');
       const timestamp = interaction.options.getBoolean('timestamp');
 
-      // ✅ FIX COLOR (auto add # if missing)
+      // ✅ Fix color (# auto)
       const color = colorInput.startsWith('#') ? colorInput : `#${colorInput}`;
 
-      // ✅ Replace variables like your old bot
+      // ✅ Clean high-quality avatar (FAST + FIXED)
+      const avatar = user.displayAvatarURL({
+        dynamic: true,
+        size: 1024
+      });
+
+      // ✅ Replace variables (like your old bot)
       description = description
         .replace(/{user\.mention}/g, `<@${user.id}>`)
-        .replace(/{user\.avatar}/g, user.displayAvatarURL({ dynamic: true }));
+        .replace(/{user\.avatar}/g, avatar);
 
       const embed = createEmbed({
         title,
@@ -89,14 +91,14 @@ export default {
       if (author) {
         embed.setAuthor({
           name: author,
-          iconURL: user.displayAvatarURL({ dynamic: true })
+          iconURL: avatar
         });
       }
 
       // 🖼️ THUMBNAIL
       if (thumbnail) {
         if (thumbnail.toLowerCase() === "user") {
-          embed.setThumbnail(user.displayAvatarURL({ dynamic: true }));
+          embed.setThumbnail(avatar);
         } else {
           embed.setThumbnail(thumbnail);
         }
@@ -109,27 +111,22 @@ export default {
       if (footer) {
         embed.setFooter({
           text: footer,
-          iconURL: user.displayAvatarURL({ dynamic: true })
+          iconURL: avatar
         });
       }
 
       // ⏱️ TIMESTAMP
       if (timestamp) embed.setTimestamp();
 
-      // ✅ SEND FINAL EMBED
-      await interaction.editReply({
+      // ⚡ FAST SEND (no delay)
+      await interaction.reply({
         embeds: [embed]
       });
 
     } catch (err) {
       console.error("EMBED ERROR:", err);
 
-      // ✅ SAFE ERROR RESPONSE
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({
-          content: "❌ Something broke while creating the embed."
-        });
-      } else {
+      if (!interaction.replied) {
         await interaction.reply({
           content: "❌ Something broke.",
           ephemeral: true
