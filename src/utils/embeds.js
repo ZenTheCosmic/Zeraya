@@ -1,141 +1,95 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+// =====================
+// EMBED BOT (CLEAN - NO AUTHOR / NO FOOTER)
+// =====================
+const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
 
-export default {
-  data: new SlashCommandBuilder()
-    .setName('embed')
-    .setDescription('Create a clean embed')
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
 
-    .addStringOption(o =>
-      o.setName('color')
-        .setDescription('Hex color (#ff00e9)')
-        .setRequired(true))
+// =====================
+// READY
+// =====================
+client.once("ready", () => {
+  console.log(`[READY] Logged in as ${client.user.tag}`);
+});
 
-    .addStringOption(o =>
-      o.setName('title')
-        .setDescription('Embed title')
-        .setRequired(true))
+// =====================
+// EMBED COMMAND (FINAL CLEAN)
+// =====================
+client.on("messageCreate", async (message) => {
+  if (!message.guild || message.author.bot) return;
+  if (!message.content.startsWith("!embed")) return;
 
-    .addStringOption(o =>
-      o.setName('description')
-        .setDescription('Embed description')
-        .setRequired(true))
+  let content = message.content.slice(7).trim();
 
-    .addUserOption(o =>
-      o.setName('user')
-        .setDescription('User for variables')
-        .setRequired(false))
+  // ✅ Detect ONE user only
+  const mentionedUser = message.mentions.users.first() || message.author;
 
-    .addStringOption(o =>
-      o.setName('thumbnail')
-        .setDescription('"user" or image URL')
-        .setRequired(false))
+  // ✅ Remove mention text from args
+  content = content.replace(/<@!?\d+>/g, "").trim();
 
-    .addStringOption(o =>
-      o.setName('image')
-        .setDescription('Image URL')
-        .setRequired(false))
+  const args = content.split("|").map(a => a.trim());
 
-    .addStringOption(o =>
-      o.setName('footer')
-        .setDescription('Footer text')
-        .setRequired(false))
+  let color = "#480FB4";
+  let title, description;
+  let thumbnail, image;
 
-    .addStringOption(o =>
-      o.setName('author')
-        .setDescription('Author name')
-        .setRequired(false))
+  // BASE
+  if (args[0]?.startsWith("#")) {
+    color = args[0];
+    title = args[1];
+    description = args[2];
+  } else {
+    title = args[0];
+    description = args[1];
+  }
 
-    .addBooleanOption(o =>
-      o.setName('timestamp')
-        .setDescription('Show timestamp?')
-        .setRequired(false)),
+  // ✅ Variables
+  if (description) {
+    description = description
+      .replace(/{user\.mention}/g, `<@${mentionedUser.id}>`)
+      .replace(/{user\.avatar}/g, mentionedUser.displayAvatarURL({ dynamic: true, size: 1024 }));
+  }
 
-  async execute(interaction) {
-    try {
-      const color = interaction.options.getString('color');
-      const title = interaction.options.getString('title');
-      let description = interaction.options.getString('description');
+  // OPTIONS
+  args.forEach(arg => {
+    const lower = arg.toLowerCase();
 
-      const targetUser =
-        interaction.options.getUser('user') || interaction.user;
+    if (lower.startsWith("thumbnail:")) thumbnail = arg.slice(10).trim();
+    if (lower.startsWith("image:")) image = arg.slice(6).trim();
+  });
 
-      const thumbnail = interaction.options.getString('thumbnail');
-      const image = interaction.options.getString('image');
-      const footer = interaction.options.getString('footer');
-      const author = interaction.options.getString('author');
-      const timestamp = interaction.options.getBoolean('timestamp');
+  if (!title || !description) {
+    return message.reply("Use: !embed #color | Title | Description");
+  }
 
-      // ✅ VARIABLES
-      description = description
-        .replace(/{user}/g, `<@${targetUser.id}>`)
-        .replace(/{user\.mention}/g, `<@${targetUser.id}>`)
-        .replace(/{user\.avatar}/g, targetUser.displayAvatarURL({ dynamic: true }));
+  const embed = new EmbedBuilder()
+    .setColor(color)
+    .setTitle(title)
+    .setDescription(description);
 
-      const embed = new EmbedBuilder()
-        .setColor(color)
-        .setTitle(title)
-        .setDescription(description);
-
-      // =========================
-      // 🔥 TIMESTAMP (NO BUG)
-      // =========================
-      if (timestamp === true) {
-        embed.setTimestamp();
-      } else {
-        embed.setTimestamp(null);
-      }
-
-      // =========================
-      // 🔥 THUMBNAIL (NO DUPLICATE)
-      // =========================
-      embed.setThumbnail(null);
-
-      if (thumbnail) {
-        if (thumbnail.toLowerCase() === 'user') {
-          embed.setThumbnail(targetUser.displayAvatarURL({ dynamic: true }));
-        } else if (thumbnail.startsWith('http')) {
-          embed.setThumbnail(thumbnail);
-        }
-      }
-
-      // =========================
-      // 🔥 IMAGE
-      // =========================
-      if (image && image.startsWith('http')) {
-        embed.setImage(image);
-      }
-
-      // =========================
-      // 🔥 AUTHOR
-      // =========================
-      if (author) {
-        embed.setAuthor({
-          name: author,
-          iconURL: targetUser.displayAvatarURL({ dynamic: true })
-        });
-      }
-
-      // =========================
-      // 🔥 FOOTER
-      // =========================
-      if (footer) {
-        embed.setFooter({ text: footer });
-      }
-
-      // ✅ CLEAN REPLY (NO ERROR)
-      await interaction.reply({
-        embeds: [embed]
-      });
-
-    } catch (err) {
-      console.error(err);
-
-      if (!interaction.replied) {
-        await interaction.reply({
-          content: '❌ Failed to create embed.',
-          ephemeral: true
-        });
-      }
+  // 🖼️ THUMBNAIL (ONLY visual avatar)
+  if (thumbnail) {
+    if (thumbnail === "user" || thumbnail === "{user.avatar}") {
+      embed.setThumbnail(mentionedUser.displayAvatarURL({ dynamic: true, size: 1024 }));
+    } else {
+      embed.setThumbnail(thumbnail);
     }
   }
-};
+
+  // 🌆 IMAGE
+  if (image) embed.setImage(image);
+
+  try {
+    await message.delete().catch(() => {});
+    await message.channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error(err);
+  }
+});
