@@ -1,217 +1,141 @@
-import { EmbedBuilder } from 'discord.js';
-import { getColor } from '../config/bot.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 
-export function createEmbed({
-  title = '',
-  description = '',
-  color = 'primary',
-  fields = [],
-  author = null,
-  footer = null,
-  thumbnail = null,
-  image = null,
-  timestamp = true,
-  url = null
-} = {}) {
-  const embed = new EmbedBuilder();
-  
-  
-  if (title && typeof title === 'string' && title.length > 0) {
-    embed.setTitle(title.substring(0, 256));
-  }
-  
-  
-  if (description && typeof description === 'string' && description.length > 0) {
-    embed.setDescription(description.substring(0, 4096));
-  }
-  
-  
-  try {
-    const embedColor = getColor(color) || '#000000';
-    embed.setColor(embedColor);
-  } catch (error) {
-    embed.setColor('#000000');
-  }
+export default {
+  data: new SlashCommandBuilder()
+    .setName('embed')
+    .setDescription('Create a clean embed')
 
-  
-  if (Array.isArray(fields) && fields.length > 0) {
-    const validFields = fields.filter(f => f && f.name && f.value);
-    if (validFields.length > 0) {
-      embed.addFields(validFields.slice(0, 25)); 
-    }
-  }
+    .addStringOption(o =>
+      o.setName('color')
+        .setDescription('Hex color (#ff00e9)')
+        .setRequired(true))
 
-  
-  if (author) {
+    .addStringOption(o =>
+      o.setName('title')
+        .setDescription('Embed title')
+        .setRequired(true))
+
+    .addStringOption(o =>
+      o.setName('description')
+        .setDescription('Embed description')
+        .setRequired(true))
+
+    .addUserOption(o =>
+      o.setName('user')
+        .setDescription('User for variables')
+        .setRequired(false))
+
+    .addStringOption(o =>
+      o.setName('thumbnail')
+        .setDescription('"user" or image URL')
+        .setRequired(false))
+
+    .addStringOption(o =>
+      o.setName('image')
+        .setDescription('Image URL')
+        .setRequired(false))
+
+    .addStringOption(o =>
+      o.setName('footer')
+        .setDescription('Footer text')
+        .setRequired(false))
+
+    .addStringOption(o =>
+      o.setName('author')
+        .setDescription('Author name')
+        .setRequired(false))
+
+    .addBooleanOption(o =>
+      o.setName('timestamp')
+        .setDescription('Show timestamp?')
+        .setRequired(false)),
+
+  async execute(interaction) {
     try {
-      if (typeof author === 'string' && author.length > 0) {
-        embed.setAuthor({ name: author.substring(0, 256) });
-      } else if (author && typeof author.name === 'string') {
-        embed.setAuthor(author);
+      const color = interaction.options.getString('color');
+      const title = interaction.options.getString('title');
+      let description = interaction.options.getString('description');
+
+      const targetUser =
+        interaction.options.getUser('user') || interaction.user;
+
+      const thumbnail = interaction.options.getString('thumbnail');
+      const image = interaction.options.getString('image');
+      const footer = interaction.options.getString('footer');
+      const author = interaction.options.getString('author');
+      const timestamp = interaction.options.getBoolean('timestamp');
+
+      // ✅ VARIABLES
+      description = description
+        .replace(/{user}/g, `<@${targetUser.id}>`)
+        .replace(/{user\.mention}/g, `<@${targetUser.id}>`)
+        .replace(/{user\.avatar}/g, targetUser.displayAvatarURL({ dynamic: true }));
+
+      const embed = new EmbedBuilder()
+        .setColor(color)
+        .setTitle(title)
+        .setDescription(description);
+
+      // =========================
+      // 🔥 TIMESTAMP (NO BUG)
+      // =========================
+      if (timestamp === true) {
+        embed.setTimestamp();
+      } else {
+        embed.setTimestamp(null);
       }
-    } catch (error) {
-      
-    }
-  }
 
-  
-  if (footer) {
-    try {
-      if (typeof footer === 'string' && footer.length > 0) {
-        embed.setFooter({ text: footer.substring(0, 2048) });
-      } else if (footer && typeof footer.text === 'string') {
-        embed.setFooter(footer);
+      // =========================
+      // 🔥 THUMBNAIL (NO DUPLICATE)
+      // =========================
+      embed.setThumbnail(null);
+
+      if (thumbnail) {
+        if (thumbnail.toLowerCase() === 'user') {
+          embed.setThumbnail(targetUser.displayAvatarURL({ dynamic: true }));
+        } else if (thumbnail.startsWith('http')) {
+          embed.setThumbnail(thumbnail);
+        }
       }
-    } catch (error) {
-      
-    }
-  }
 
-  
-  if (thumbnail) {
-    try {
-      if (typeof thumbnail === 'string' && thumbnail.length > 0) {
-        embed.setThumbnail(thumbnail);
-      } else if (thumbnail && typeof thumbnail.url === 'string') {
-        embed.setThumbnail(thumbnail.url);
-      }
-    } catch (error) {
-      
-    }
-  }
-
-  
-  if (image) {
-    try {
-      if (typeof image === 'string' && image.length > 0) {
+      // =========================
+      // 🔥 IMAGE
+      // =========================
+      if (image && image.startsWith('http')) {
         embed.setImage(image);
-      } else if (image && typeof image.url === 'string') {
-        embed.setImage(image.url);
       }
-    } catch (error) {
-      
+
+      // =========================
+      // 🔥 AUTHOR
+      // =========================
+      if (author) {
+        embed.setAuthor({
+          name: author,
+          iconURL: targetUser.displayAvatarURL({ dynamic: true })
+        });
+      }
+
+      // =========================
+      // 🔥 FOOTER
+      // =========================
+      if (footer) {
+        embed.setFooter({ text: footer });
+      }
+
+      // ✅ CLEAN REPLY (NO ERROR)
+      await interaction.reply({
+        embeds: [embed]
+      });
+
+    } catch (err) {
+      console.error(err);
+
+      if (!interaction.replied) {
+        await interaction.reply({
+          content: '❌ Failed to create embed.',
+          ephemeral: true
+        });
+      }
     }
   }
-
-  
-  if (timestamp === true) {
-    embed.setTimestamp();
-  } else if (timestamp instanceof Date) {
-    embed.setTimestamp(timestamp);
-  }
-
-  
-  if (url && typeof url === 'string' && url.length > 0) {
-    try {
-      embed.setURL(url);
-    } catch (error) {
-      
-    }
-  }
-
-  return embed;
-}
-
-export function errorEmbed(message, error = null, options = {}) {
-  const { showDetails = process.env.NODE_ENV !== 'production' } = options;
-  let description = message;
-
-  if (error && showDetails) {
-    const detailText = typeof error === 'string' ? error : (error.message || String(error));
-    description = `${message}\n${formatCodeBlock(detailText)}`;
-  }
-
-  return createEmbed({
-    title: '❌ Error',
-    description,
-    color: 'error',
-    timestamp: true
-  });
-}
-
-export function successEmbed(message, title = '✅ Success') {
-  return createEmbed({
-    title,
-    description: message,
-    color: 'success',
-    timestamp: true
-  });
-}
-
-export function infoEmbed(message, title = 'ℹ️ Information') {
-  return createEmbed({
-    title,
-    description: message,
-    color: 'info',
-    timestamp: true
-  });
-}
-
-export function warningEmbed(message, title = '⚠️ Warning') {
-  return createEmbed({
-    title,
-    description: message,
-    color: 'warning',
-    timestamp: true
-  });
-}
-
-export function formatUser(user) {
-  return `${user} (${user.tag} | ${user.id})`;
-}
-
-export function formatDate(date) {
-  return `<t:${Math.floor(date.getTime() / 1000)}:F>`;
-}
-
-export function formatRelativeTime(date) {
-  return `<t:${Math.floor(date.getTime() / 1000)}:R>`;
-}
-
-export function formatCodeBlock(content, language = '') {
-  return `\`\`\`${language}\n${content}\n\`\`\``;
-}
-
-export function formatInlineCode(content) {
-  return `\`${content}\``;
-}
-
-export function formatBold(content) {
-  return `**${content}**`;
-}
-
-export function formatItalic(content) {
-  return `*${content}*`;
-}
-
-export function formatUnderline(content) {
-  return `__${content}__`;
-}
-
-export function formatStrikethrough(content) {
-  return `~~${content}~~`;
-}
-
-export function formatSpoiler(content) {
-  return `||${content}||`;
-}
-
-export function formatQuote(content) {
-  return `> ${content}`;
-}
-
-export function formatList(items, ordered = false) {
-  return items
-    .map((item, index) => (ordered ? `${index + 1}.` : '•') + ` ${item}`)
-    .join('\n');
-}
-
-export function formatProgressBar(current, max, size = 10) {
-  const progress = Math.min(Math.max(0, current / max), 1);
-  const filled = Math.round(size * progress);
-  const empty = size - filled;
-  return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${Math.round(progress * 100)}%`;
-}
-
-
-
+};
